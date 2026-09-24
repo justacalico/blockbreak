@@ -123,7 +123,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lcov
           flutter test --coverage --no-pub
-          lcov --remove coverage/lcov.info '**/*.g.dart' '**/*.freezed.dart' -o coverage/lcov.cleaned.info
+          lcov --remove coverage/lcov.info '**/*.g.dart' '**/*.freezed.dart' \
+            --ignore-errors unused -o coverage/lcov.cleaned.info
           lcov --summary coverage/lcov.cleaned.info --fail-under-lines 100
 
   build:
