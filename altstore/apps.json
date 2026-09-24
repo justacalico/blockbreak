@@ -9,7 +9,15 @@
       "developerName": "HttpAnimations",
       "iconURL": "https://gitlab.com/HttpAnimations/blockbreak/-/raw/main/assets/icon/icon-1024.png",
       "tintedIconURL": "https://gitlab.com/HttpAnimations/blockbreak/-/raw/main/assets/icon/icon-1024.png",
-      "versions": [],
+      "versions": [
+        {
+          "version": "0.1.1",
+          "date": "2026-09-24T22:28:21Z",
+          "downloadURL": "https://gitlab.com/api/v4/projects/86872667/packages/generic/release-assets/v0.1.1/blockbreak-ios-arm64-unsigned.ipa",
+          "size": 6665986,
+          "minOSVersion": "12.0"
+        }
+      ],
       "news": []
     }
   ]
