@@ -367,7 +367,7 @@ jobs:
           mkdir -p "$ARTIFACTS_DIR"
           flutter config --no-analytics >/dev/null
           flutter pub get
-          flutter build web --release --build-name="$VERSION" --build-number="$BUILD_NUMBER" --base-href /blockbreak/
+          flutter build web --release --build-name="$VERSION" --build-number="$BUILD_NUMBER" --base-href /
           tar -czf "$ARTIFACTS_DIR/blockbreak-web.tar.gz" -C build/web .
 
       - name: Upload artifacts
