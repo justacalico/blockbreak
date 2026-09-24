@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing is injected via key.properties (CI writes it from secrets).
+// Local debug builds keep working without it.
+val keyPropertiesFile = rootProject.file("key.properties")
+val keyProperties = Properties()
+if (keyPropertiesFile.exists()) {
+    keyPropertiesFile.inputStream().use { keyProperties.load(it) }
+}
+val releaseSigningReady = keyPropertiesFile.exists() &&
+    keyProperties.getProperty("storeFile")?.isNotBlank() == true
 
 android {
     namespace = "com.httpanimations.blockbreak"
@@ -15,21 +27,42 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.httpanimations.blockbreak"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            create("release") {
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+                storeFile = file(
+                    keyProperties.getProperty("storeFile").let {
+                        if (java.io.File(it).isAbsolute) it
+                        else rootProject.file(it).absolutePath
+                    }
+                )
+                storePassword = keyProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // A release build without key.properties must never ship a
+            // debug-signed artifact; fail loudly instead.
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (project.hasProperty("requireReleaseSigning")) {
+                throw GradleException(
+                    "key.properties missing: refusing to build a debug-signed release"
+                )
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
