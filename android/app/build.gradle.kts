@@ -1,4 +1,5 @@
 import java.util.Properties
+import com.android.build.api.dsl.ApplicationExtension
 
 plugins {
     id("com.android.application")
@@ -16,7 +17,7 @@ if (keyPropertiesFile.exists()) {
 val releaseSigningReady = keyPropertiesFile.exists() &&
     keyProperties.getProperty("storeFile")?.isNotBlank() == true
 
-android {
+configure<ApplicationExtension> {
     namespace = "com.httpanimations.blockbreak"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -39,12 +40,7 @@ android {
             create("release") {
                 keyAlias = keyProperties.getProperty("keyAlias")
                 keyPassword = keyProperties.getProperty("keyPassword")
-                storeFile = file(
-                    keyProperties.getProperty("storeFile").let {
-                        if (java.io.File(it).isAbsolute) it
-                        else rootProject.file(it).absolutePath
-                    }
-                )
+                storeFile = file(keyProperties.getProperty("storeFile"))
                 storePassword = keyProperties.getProperty("storePassword")
             }
         }
