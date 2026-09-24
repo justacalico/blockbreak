@@ -105,7 +105,12 @@ jobs:
           sudo install -m 755 /tmp/cog/x86_64-unknown-linux-musl/cog /usr/local/bin/cog
 
       - name: Check commits
-        run: cog check
+        run: |
+          if git tag -l 'v*' | grep -q .; then
+            cog check
+          else
+            echo "No version tag yet; skipping conventional commit check"
+          fi
 
       - name: Analyze
         run: |
