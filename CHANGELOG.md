@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.1 - 2026-09-24
+#### Bug Fixes
+- 修正版本号解析以支持无构建号的版本串 - (4068caf) - HttpAnimations
+- web 构建改用根路径以适配 Pages 独立域名 - (817a85f) - HttpAnimations
+
+- - -
+
 ## v0.1.0 - 2026-09-24
 #### Features
 - 应用图标与清单元数据 - (e4edd32) - HttpAnimations
