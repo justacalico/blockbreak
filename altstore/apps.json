@@ -1,0 +1,16 @@
+{
+  "name": "BlockBreak",
+  "identifier": "com.httpanimations.blockbreak.source",
+  "iconURL": "https://gitlab.com/HttpAnimations/blockbreak/-/raw/main/assets/icon/icon-1024.png",
+  "apps": [
+    {
+      "name": "BlockBreak",
+      "bundleIdentifier": "com.httpanimations.blockbreak",
+      "developerName": "HttpAnimations",
+      "iconURL": "https://gitlab.com/HttpAnimations/blockbreak/-/raw/main/assets/icon/icon-1024.png",
+      "tintedIconURL": "https://gitlab.com/HttpAnimations/blockbreak/-/raw/main/assets/icon/icon-1024.png",
+      "versions": [],
+      "news": []
+    }
+  ]
+}
