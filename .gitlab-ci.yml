@@ -174,7 +174,8 @@ pages:
         -o /tmp/web.tar.gz
       tar -xzf /tmp/web.tar.gz -C public
     - mkdir -p public/altstore
-    - cp altstore/apps.json public/altstore/
+    # Always serve the latest committed source, not this pipeline's ref.
+    - curl -fsSL "https://gitlab.com/$CI_PROJECT_PATH/-/raw/main/altstore/apps.json" -o public/altstore/apps.json
   artifacts:
     paths:
       - public
