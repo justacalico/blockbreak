@@ -17,22 +17,18 @@ void main() {
   test('tap notifies and emits swing + break events', () async {
     final c = makeController();
     c.engine.ensureBlock();
-    final swings = <double>[];
     final breaks = <String>[];
-    final sub1 = c.swings.listen((r) => swings.add(r.damage));
-    final sub2 = c.breaks.listen(breaks.add);
+    final sub = c.breaks.listen(breaks.add);
     addTearDown(() {
-      sub1.cancel();
-      sub2.cancel();
+      sub.cancel();
       c.dispose();
     });
 
     var notified = 0;
     c.addListener(() => notified++);
 
-    c.tap();
-    await Future<void>.delayed(Duration.zero);
-    expect(swings.length, 1);
+    final r = c.tap();
+    expect(r.damage, greaterThan(0));
     expect(notified, 1);
 
     c.state.currentBlockHp = 1;
@@ -88,8 +84,12 @@ void main() {
     c.state.prestigeCount = 1;
     c.upgradePickaxe('stone');
     expect(c.state.pickaxes['stone']!.level, 1);
+    // Wood is free and has no upgrade path.
+    c.upgradePickaxe('wood');
+    expect(c.state.pickaxes['wood']!.level, 0);
+    // A failed upgrade must not invent a phantom state entry.
     c.upgradePickaxe('diamond');
-    expect(c.state.pickaxes.containsKey('diamond'), isTrue);
+    expect(c.state.pickaxes.containsKey('diamond'), isFalse);
 
     c.unlockBiome('tundra');
     expect(c.state.biomesUnlocked.contains('tundra'), isFalse);
@@ -113,16 +113,13 @@ void main() {
     final c = makeController();
     c.engine.ensureBlock();
     c.state.picks = 100000;
-    final rewards = <ChestReward>[];
-    final sub = c.chests.listen(rewards.add);
-    addTearDown(() {
-      sub.cancel();
-      c.dispose();
-    });
+    addTearDown(c.dispose);
+    var notified = 0;
+    c.addListener(() => notified++);
     final r = c.openChest(ChestKind.small);
     expect(r, isNotNull);
-    await Future<void>.delayed(Duration.zero);
-    expect(rewards.length, 1);
+    expect(r!.blocks, isNotEmpty);
+    expect(notified, 1);
     expect(c.openChest(ChestKind.large), isNull);
   });
 

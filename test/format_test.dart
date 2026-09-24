@@ -16,7 +16,7 @@ void main() {
     expect(fmt(1000), '1.00K');
     expect(fmt(1500), '1.50K');
     expect(fmt(12345), '12.3K');
-    expect(fmt(999999), '1000K');
+    expect(fmt(999999), '1.00M');
     expect(fmt(2.5e6), '2.50M');
     expect(fmt(1.2e9), '1.20B');
     expect(fmt(7e12), '7.00T');

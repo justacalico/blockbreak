@@ -34,28 +34,29 @@ class BlockPainter extends CustomPainter {
   Color _cellColor(int x, int y) {
     final p = block.palette;
     final h = _hash(x, y);
+    Color c(int i) => Color(p[i % p.length]);
     switch (block.texture) {
       case TextureKind.stripes:
         final band = (y ~/ 3) % 2;
-        return Color(h % 9 == 0 ? p[2] : p[band]);
+        return c(h % 9 == 0 ? 2 : band);
       case TextureKind.rings:
         final d = max((x - grid / 2).abs(), (y - grid / 2).abs()).toInt();
-        return Color(d % 3 == 0 ? p[3] : p[h % 3]);
+        return c(d % 3 == 0 ? 3 : h % 3);
       case TextureKind.speckled:
-        if (h % 11 == 0) return Color(p[3 % p.length]);
-        if (h % 5 == 0) return Color(p[1]);
-        return Color(p[h % 3 == 0 ? 2 : 0]);
+        if (h % 11 == 0) return c(3);
+        if (h % 5 == 0) return c(1);
+        return c(h % 3 == 0 ? 2 : 0);
       case TextureKind.gems:
-        if (h % 13 == 0) return Color(p[2]);
-        if (h % 6 == 0) return Color(p[1]);
-        return Color(p[h % 4 == 0 ? 3 : 0]);
+        if (h % 13 == 0) return c(2);
+        if (h % 6 == 0) return c(1);
+        return c(h % 4 == 0 ? 3 : 0);
       case TextureKind.cracks:
-        if (h % 7 == 0) return Color(p[1]);
-        return Color(p[h % 3 == 0 ? 2 : 0]);
+        if (h % 7 == 0) return c(1);
+        return c(h % 3 == 0 ? 2 : 0);
       case TextureKind.plain:
-        if (h % 6 == 0) return Color(p[1]);
-        if (h % 10 == 0) return Color(p[2]);
-        return Color(p[0]);
+        if (h % 6 == 0) return c(1);
+        if (h % 10 == 0) return c(2);
+        return c(0);
     }
   }
 

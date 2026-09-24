@@ -49,9 +49,14 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      widget.controller.save();
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        widget.controller.onPaused();
+      case AppLifecycleState.resumed:
+        widget.controller.onResumed();
     }
   }
 
@@ -95,7 +100,7 @@ class _GameScreenState extends State<GameScreen>
                   alignment: Alignment.centerLeft,
                   child: Text(fmt(state.picks), style: BB.display),
                 ),
-                Text('${fmt(engine.pps)} picks/sec',
+                Text('${fmt(engine.effectivePps)} picks/sec',
                     style: BB.statDim),
               ],
             ),
@@ -136,10 +141,11 @@ class _GameScreenState extends State<GameScreen>
 
   Widget _navBar(BuildContext context) {
     final c = widget.controller;
-    return Container(
+    return Material(
+      color: BB.panel,
+      child: Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: const BoxDecoration(
-        color: BB.panel,
         border: Border(top: BorderSide(color: BB.edge)),
       ),
       child: Row(
@@ -171,6 +177,7 @@ class _GameScreenState extends State<GameScreen>
             onTap: () => BagSheet.show(context, c),
           ),
         ],
+      ),
       ),
     );
   }

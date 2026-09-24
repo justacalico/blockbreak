@@ -53,4 +53,65 @@ void main() {
     expect(back.stats.chestsOpened, 6);
     expect(back.blockCount, 80);
   });
+
+group('save sanitization', () {
+  test('missing fields fall back to defaults', () {
+    final s = GameState.fromJson(const <String, dynamic>{});
+    expect(s.picks, 0);
+    expect(s.biomesUnlocked, {'plains'});
+    expect(s.currentBiome, 'plains');
+    expect(s.equippedPickaxe, 'wood');
+    expect(s.pickaxes['wood']!.owned, isTrue);
+    expect(s.currentBlockId, 'dirt');
+  });
+
+  test('unknown ids are dropped everywhere', () {
+    final s = GameState.fromJson({
+      'inventory': {'dirt': 5, 'alien_rock': 9, 'clay': 'bad'},
+      'pickaxes': {
+        'stone': {'owned': true, 'level': 2},
+        'lightsaber': {'owned': true},
+        'iron': 'junk',
+      },
+      'equippedPickaxe': 'lightsaber',
+      'biomesUnlocked': ['plains', 'narnia'],
+      'currentBiome': 'narnia',
+      'gearOwned': ['hopper', 'death_star'],
+      'currentBlockId': 'alien_rock',
+    });
+    expect(s.inventory, {'dirt': 5.0});
+    expect(s.pickaxes.keys, containsAll(['wood', 'stone']));
+    expect(s.pickaxes.containsKey('lightsaber'), isFalse);
+    expect(s.equippedPickaxe, 'wood');
+    expect(s.biomesUnlocked, {'plains'});
+    expect(s.currentBiome, 'plains');
+    expect(s.gearOwned, {'hopper'});
+    expect(s.currentBlockId, 'dirt');
+  });
+
+  test('gapped biome chain truncates to the contiguous prefix', () {
+    final s = GameState.fromJson({
+      'biomesUnlocked': ['plains', 'desert', 'caves'],
+      'currentBiome': 'caves',
+    });
+    expect(s.biomesUnlocked, {'plains', 'desert'});
+    expect(s.currentBiome, 'plains');
+  });
+
+  test('unowned equipped pickaxe falls back to wood', () {
+    final s = GameState.fromJson({
+      'equippedPickaxe': 'diamond',
+      'pickaxes': {'diamond': {'owned': false, 'level': 9}},
+    });
+    expect(s.equippedPickaxe, 'wood');
+  });
+
+  test('partial stats map still parses', () {
+    final s = GameState.fromJson({
+      'stats': {'totalTaps': 12},
+    });
+    expect(s.stats.totalTaps, 12);
+    expect(s.stats.totalBlocks, 0);
+  });
+});
 }

@@ -26,11 +26,12 @@ String fmt(num value) {
         : v.toStringAsFixed(1);
   }
   var tier = 0;
-  while (v >= 1000 && tier < _suffixes.length - 1) {
+  // Roll into the next suffix once rounding would print "1000X".
+  while (v >= 999.95 && tier < _suffixes.length - 1) {
     v /= 1000;
     tier++;
   }
-  if (v >= 1000) return value.toDouble().toStringAsExponential(1);
+  if (v >= 999.95) return value.toDouble().toStringAsExponential(1);
   final digits = v >= 100 ? 0 : (v >= 10 ? 1 : 2);
   return '${v.toStringAsFixed(digits)}${_suffixes[tier]}';
 }

@@ -45,8 +45,10 @@ class EffectsController extends ChangeNotifier {
   final List<Particle> particles = [];
   final List<FloatText> texts = [];
 
-  /// Block-break burst of voxel chunks.
+  /// Block-break burst of voxel chunks. Capped so a burst of automatic
+  /// breaks cannot flood the particle list.
   void burst(Offset center, double radius, List<int> palette) {
+    if (particles.length > 300) return;
     for (var i = 0; i < 18; i++) {
       final angle = _rng.nextDouble() * pi * 2;
       final speed = 60 + _rng.nextDouble() * 220;

@@ -45,7 +45,7 @@ class StatsSheet extends StatelessWidget {
           _row('Chests opened', fmt(stats.chestsOpened)),
           _row('Prestiges', fmt(s.prestigeCount)),
           _row('Damage / swing', fmt(engine.swingDamage)),
-          _row('Picks / sec', fmt(engine.pps)),
+          _row('Picks / sec', fmt(engine.effectivePps)),
           _row('Crit chance',
               '${(engine.critChance * 100).toStringAsFixed(0)}%'),
           const SizedBox(height: 18),

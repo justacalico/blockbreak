@@ -32,6 +32,8 @@ class _MineViewState extends State<MineView> with TickerProviderStateMixin {
   StreamSubscription<String>? _breakSub;
   Timer? _holdTimer;
   int _spawnSeed = 0;
+  int _pointers = 0;
+  DateTime _lastImpact = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -82,7 +84,13 @@ class _MineViewState extends State<MineView> with TickerProviderStateMixin {
     setState(() => _spawnSeed++);
     _pop.forward(from: 0);
     _shake.forward(from: 0);
-    HapticFeedback.mediumImpact();
+    // Auto-breaks can fire many times a second at high PPS; throttle the
+    // haptic so it stays a punch, not a buzz.
+    final now = DateTime.now();
+    if (now.difference(_lastImpact).inMilliseconds > 350) {
+      _lastImpact = now;
+      HapticFeedback.mediumImpact();
+    }
   }
 
   void _swingAt(Offset pos) {
@@ -99,13 +107,24 @@ class _MineViewState extends State<MineView> with TickerProviderStateMixin {
     HapticFeedback.lightImpact();
   }
 
-  void _onTapDown(TapDownDetails d) {
-    _swingAt(d.localPosition);
-    _holdTimer?.cancel();
-    _holdTimer = Timer(
-      const Duration(milliseconds: 380),
-      _startRepeat,
-    );
+  void _onPointerDown(PointerDownEvent e) {
+    _pointers++;
+    _swingAt(e.localPosition);
+    if (_pointers == 1) {
+      _holdTimer?.cancel();
+      _holdTimer = Timer(
+        const Duration(milliseconds: 380),
+        _startRepeat,
+      );
+    }
+  }
+
+  void _onPointerUp(PointerEvent e) {
+    _pointers--;
+    if (_pointers <= 0) {
+      _pointers = 0;
+      _endHold();
+    }
   }
 
   void _startRepeat() {
@@ -134,11 +153,11 @@ class _MineViewState extends State<MineView> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final blockSize =
             min(constraints.maxWidth, constraints.maxHeight) * 0.52;
-        return GestureDetector(
+        return Listener(
           behavior: HitTestBehavior.opaque,
-          onTapDown: _onTapDown,
-          onTapUp: (_) => _endHold(),
-          onTapCancel: _endHold,
+          onPointerDown: _onPointerDown,
+          onPointerUp: _onPointerUp,
+          onPointerCancel: _onPointerUp,
           child: Stack(
             children: [
               Positioned.fill(

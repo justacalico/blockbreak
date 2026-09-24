@@ -27,7 +27,6 @@ class PickaxePainter extends CustomPainter {
     final cell = size.width / grid;
     final paint = Paint();
     final head = Color(def.head);
-    final headDark = Color(def.head).withValues(alpha: 1);
     final outline = const Color(0xFF14121A);
 
     void px(int x, int y, Color c, [double grow = 0.4]) {
@@ -47,7 +46,7 @@ class PickaxePainter extends CustomPainter {
     }
     // Bright top edge on the head.
     for (final c in _headCells) {
-      if (c[1] == 4) px(c[0], c[1], Color.lerp(headDark, Colors.white, 0.35)!);
+      if (c[1] == 4) px(c[0], c[1], Color.lerp(head, Colors.white, 0.35)!);
     }
     for (final c in _handleCells) {
       px(c[0], c[1], outline, 1.2);

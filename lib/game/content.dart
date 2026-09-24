@@ -120,7 +120,6 @@ class PickaxeDef {
   final bool free;
 }
 
-const kBlockHp = <String, double>{};
 const kCritMult = 3.0;
 const kTapFraction = 0.01;
 const kAutoDmgRate = 0.05;

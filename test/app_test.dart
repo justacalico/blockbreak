@@ -194,7 +194,7 @@ void main() {
     expect(c.state.equippedPickaxe, 'stone');
 
     await tester.pump();
-    // Wood is owned too, so two UPGRADE buttons exist; stone's is last.
+    // The free wooden pickaxe has no upgrade path; stone's is the only one.
     await tester.tap(find.text('UPGRADE').last);
     await tester.pump();
     expect(c.state.pickaxes['stone']!.level, 1);
@@ -216,7 +216,8 @@ void main() {
     await tester.tap(find.text('BUY').first);
     await tester.pump();
     expect(c.state.gearOwned, contains('hopper'));
-    expect(find.text('OWNED', findRichText: true), findsNothing);
+    await tester.pump();
+    expect(find.byIcon(Icons.check_circle), findsWidgets);
     await settle(tester);
   });
 
@@ -309,7 +310,7 @@ void main() {
   });
 
   testWidgets('empty chest dialog shows a fallback', (tester) async {
-    final c = await pumpApp(tester);
+    await pumpApp(tester);
     final ctx = tester.element(find.byType(Scaffold));
     showChestReward(ctx, ChestReward());
     await settle(tester);
@@ -332,6 +333,32 @@ void main() {
     expect(find.text('No blocks auto-mined.'), findsOneWidget);
     await tester.tap(find.text('COLLECT'));
     await settle(tester);
+  });
+
+  testWidgets('multi-touch keeps mining until all fingers lift',
+      (tester) async {
+    final c = await pumpApp(tester);
+    final center = tester.getCenter(find.byType(MineView));
+    final g1 = await tester.startGesture(center);
+    await tester.pump(const Duration(milliseconds: 100));
+    final g2 = await tester
+        .startGesture(center - const Offset(50, 0));
+    await tester.pump(const Duration(milliseconds: 500));
+    await g1.up();
+    // First finger lifted, second still down: auto-swing keeps going.
+    await tester.pump(const Duration(milliseconds: 700));
+    await g2.up();
+    await tester.pump();
+    expect(c.state.stats.totalTaps, greaterThan(3));
+    await settle(tester, 5);
+  });
+
+  testWidgets('auto-breaks from gear drive bursts and throttled haptics',
+      (tester) async {
+    final c = await pumpApp(tester,
+        state: GameState()..gearOwned.add('dragon_perch'));
+    await settle(tester, 6);
+    expect(c.state.stats.totalBlocks, greaterThan(0));
   });
 
   testWidgets('runic chip shows only when runic held', (tester) async {

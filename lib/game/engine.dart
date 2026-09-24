@@ -72,6 +72,8 @@ class GameEngine {
   PickaxeState _pickaxeState(String id) =>
       state.pickaxes.putIfAbsent(id, PickaxeState.new);
 
+  PickaxeState? _pickaxeRead(String id) => state.pickaxes[id];
+
   int biomeIndex(String id) => kBiomes.indexWhere((b) => b.id == id);
 
   int get _highestBiomeIndex =>
@@ -107,13 +109,13 @@ class GameEngine {
   int get dropBonus =>
       _abilities.fold(0, (s, a) => s + a.dropAdd.round());
 
-  int pickaxeLevel(String id) => _pickaxeState(id).level;
+  int pickaxeLevel(String id) => _pickaxeRead(id)?.level ?? 0;
 
   int get maxPickaxeLevel => 1 + state.prestigeCount;
 
   double pickaxeStrength(String id) {
     final def = pickaxeDef(id);
-    return def.strength * (1 + 0.3 * _pickaxeState(id).level);
+    return def.strength * (1 + 0.3 * pickaxeLevel(id));
   }
 
   double get pps {
@@ -129,25 +131,34 @@ class GameEngine {
   double get blockMaxHp => blockDef(state.currentBlockId).hp;
 
   double get swingDamage =>
-      pickaxeStrength(state.equippedPickaxe) * dmgMul +
-      blockMaxHp * kTapFraction;
+      (pickaxeStrength(state.equippedPickaxe) + blockMaxHp * kTapFraction) *
+      dmgMul;
+
+  /// Picks per second actually earned, including pick multipliers.
+  double get effectivePps => pps * pickMul;
 
   double get autoDamagePerSecond => pps * kAutoDmgRate;
 
   // -- mining -------------------------------------------------------------
 
   String _rollBlock(BiomeDef b, {bool rareBias = false}) {
-    var total = 0;
+    var maxW = 0;
     for (final blk in b.blocks) {
-      total += rareBias ? blk.weight * blk.weight : blk.weight;
+      if (blk.weight > maxW) maxW = blk.weight;
+    }
+    // Rare bias inverts the weights: the rarest block rolls most often.
+    int w(BiomeDef blk, int i) => rareBias
+        ? maxW + 1 - blk.blocks[i].weight
+        : blk.blocks[i].weight;
+    var total = 0;
+    for (var i = 0; i < b.blocks.length; i++) {
+      total += w(b, i);
     }
     var roll = _rng.nextInt(total);
     var i = 0;
     while (i < b.blocks.length - 1) {
-      final w =
-          rareBias ? b.blocks[i].weight * b.blocks[i].weight : b.blocks[i].weight;
-      if (roll < w) break;
-      roll -= w;
+      if (roll < w(b, i)) break;
+      roll -= w(b, i);
       i++;
     }
     return b.blocks[i].id;
@@ -163,6 +174,7 @@ class GameEngine {
     final count = 1 + dropBonus;
     state.inventory[blockId] = (state.inventory[blockId] ?? 0) + count;
     state.stats.totalBlocks++;
+    state.blocksThisRun++;
     into?.add(blockId);
   }
 
@@ -200,6 +212,7 @@ class GameEngine {
 
   TickResult tick(double dt) {
     final result = TickResult();
+    if (dt <= 0) return result;
     final earned = pps * dt * pickMul;
     state.picks += earned;
     result.picks = earned;
@@ -217,6 +230,9 @@ class GameEngine {
         dmgPool = 0;
       }
     }
+    if (dmgPool > 0) {
+      state.currentBlockHp = max(1, state.currentBlockHp - dmgPool);
+    }
     return result;
   }
 
@@ -233,10 +249,10 @@ class GameEngine {
 
   bool get canPrestige =>
       state.currentBiome == 'the_end' &&
-      (_pickaxeState('endstone').owned);
+      (_pickaxeRead('endstone')?.owned ?? false);
 
   int get prestigeRunic =>
-      min(kPrestigeRunicCap, 5 + (state.stats.totalBlocks ~/ 40));
+      min(kPrestigeRunicCap, 5 + (state.blocksThisRun ~/ 40));
 
   bool buyPickaxe(String id) {
     final def = pickaxeDef(id);
@@ -250,15 +266,16 @@ class GameEngine {
 
   Map<String, int> upgradeCost(String id) {
     final def = pickaxeDef(id);
-    final level = _pickaxeState(id).level;
+    final level = pickaxeLevel(id);
     return def.cost.map(
       (k, v) => MapEntry(k, (v * pow(1.6, level)).ceil()),
     );
   }
 
   bool upgradePickaxe(String id) {
-    final st = _pickaxeState(id);
-    if (!st.owned || st.level >= maxPickaxeLevel) return false;
+    final st = _pickaxeRead(id);
+    if (st == null || !st.owned || st.level >= maxPickaxeLevel) return false;
+    if (pickaxeDef(id).cost.isEmpty) return false;
     final cost = upgradeCost(id);
     if (!canAfford(cost)) return false;
     _pay(cost);
@@ -267,7 +284,7 @@ class GameEngine {
   }
 
   bool equipPickaxe(String id) {
-    if (!_pickaxeState(id).owned) return false;
+    if (!(_pickaxeRead(id)?.owned ?? false)) return false;
     state.equippedPickaxe = id;
     return true;
   }
@@ -276,7 +293,9 @@ class GameEngine {
     for (final b in kBiomes) {
       for (final g in b.gear) {
         if (g.id == id) {
-          if (state.gearOwned.contains(id) || !canAfford(g.cost)) {
+          if (!state.biomesUnlocked.contains(b.id) ||
+              state.gearOwned.contains(id) ||
+              !canAfford(g.cost)) {
             return false;
           }
           _pay(g.cost);
@@ -341,7 +360,7 @@ class GameEngine {
     final pickChance = kind == ChestKind.small ? 0.04 : 0.20;
     if (_rng.nextDouble() < pickChance) {
       final locked = kPickaxes
-          .where((p) => !_pickaxeState(p.id).owned)
+          .where((p) => !(_pickaxeRead(p.id)?.owned ?? false))
           .toList();
       if (locked.isNotEmpty) {
         final won = locked.first;
@@ -375,6 +394,8 @@ class GameEngine {
       ..add('plains');
     state.currentBiome = 'plains';
     state.gearOwned.clear();
+    state.smallChestsOpened = 0;
+    state.blocksThisRun = 0;
     _spawnBlock();
     return gained;
   }
@@ -382,7 +403,7 @@ class GameEngine {
   // -- offline ------------------------------------------------------------
 
   OfflineReport applyOffline(int elapsedSeconds) {
-    final secs = min(elapsedSeconds, kOfflineCapSeconds);
+    final secs = min(max(0, elapsedSeconds), kOfflineCapSeconds);
     final earned = pps * secs * pickMul;
     state.picks += earned;
     final blocks = <String, double>{};

@@ -8,7 +8,7 @@ import 'models.dart';
 import 'save.dart';
 
 /// Wraps [GameEngine] with a game loop, autosave and event streams for the
-/// UI layer (swing results, block breaks, offline report).
+/// UI layer (block breaks, offline report).
 class GameController extends ChangeNotifier {
   GameController({
     required this.engine,
@@ -27,20 +27,19 @@ class GameController extends ChangeNotifier {
   Timer? _ticker;
   Timer? _saver;
   DateTime _lastTick = DateTime.now();
+  DateTime? _pausedAt;
 
-  final _swings = StreamController<SwingResult>.broadcast();
   final _breaks = StreamController<String>.broadcast();
-  final _chests = StreamController<ChestReward>.broadcast();
 
-  Stream<SwingResult> get swings => _swings.stream;
+  /// Emits the id of each block destroyed by any source.
   Stream<String> get breaks => _breaks.stream;
-  Stream<ChestReward> get chests => _chests.stream;
 
   OfflineReport? pendingOfflineReport;
 
   GameState get state => engine.state;
 
   void start() {
+    if (_ticker != null) return;
     _lastTick = DateTime.now();
     _ticker = Timer.periodic(_tickInterval, (_) => _onTick());
     _saver = Timer.periodic(_saveInterval, (_) => save());
@@ -48,7 +47,11 @@ class GameController extends ChangeNotifier {
 
   void _onTick() {
     final now = DateTime.now();
-    final dt = now.difference(_lastTick).inMilliseconds / 1000.0;
+    // Cap the frame delta so a suspended timer cannot dump unbounded
+    // progress into a single tick; real suspension goes through
+    // onPaused/onResumed and the offline path instead.
+    final dt = (now.difference(_lastTick).inMilliseconds / 1000.0)
+        .clamp(0.0, 1.0);
     _lastTick = now;
     final result = engine.tick(dt);
     for (final id in result.broken) {
@@ -60,7 +63,6 @@ class GameController extends ChangeNotifier {
   /// Manual swing. Returns the result so callers can animate.
   SwingResult tap() {
     final r = engine.tap();
-    _swings.add(r);
     if (r.broke && r.brokenBlockId != null) {
       _breaks.add(r.brokenBlockId!);
     }
@@ -94,10 +96,7 @@ class GameController extends ChangeNotifier {
 
   ChestReward? openChest(ChestKind kind) {
     final reward = engine.openChest(kind);
-    if (reward != null) {
-      _chests.add(reward);
-      notifyListeners();
-    }
+    if (reward != null) notifyListeners();
     return reward;
   }
 
@@ -105,6 +104,21 @@ class GameController extends ChangeNotifier {
     final gained = engine.prestige();
     if (gained >= 0) notifyListeners();
     return gained;
+  }
+
+  /// App went to the background.
+  void onPaused() {
+    _pausedAt = DateTime.now();
+    save();
+  }
+
+  /// App came back; convert the gap into offline earnings.
+  void onResumed() {
+    final paused = _pausedAt;
+    _pausedAt = null;
+    if (paused == null) return;
+    final elapsed = DateTime.now().difference(paused).inSeconds;
+    if (elapsed > 30) applyOfflineProgress(elapsed);
   }
 
   void applyOfflineProgress(int elapsedSeconds) {
@@ -137,7 +151,9 @@ class GameController extends ChangeNotifier {
     s.gearOwned.clear();
     s.smallChestsOpened = 0;
     s.prestigeCount = 0;
+    s.blocksThisRun = 0;
     s.stats = Stats();
+    pendingOfflineReport = null;
     engine.ensureBlock();
     notifyListeners();
     save();
@@ -149,9 +165,7 @@ class GameController extends ChangeNotifier {
   void dispose() {
     _ticker?.cancel();
     _saver?.cancel();
-    _swings.close();
     _breaks.close();
-    _chests.close();
     super.dispose();
   }
 }

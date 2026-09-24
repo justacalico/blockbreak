@@ -1,6 +1,8 @@
 import 'package:blockbreak/game/content.dart';
 import 'package:blockbreak/game/engine.dart';
 import 'package:blockbreak/game/models.dart';
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers.dart';
@@ -132,6 +134,21 @@ void main() {
       expect(r.picks, 0);
       expect(r.broken, isEmpty);
     });
+
+    test('tick ignores non-positive and oversized deltas', () {
+      final e = makeEngine();
+      e.ensureBlock();
+      expect(e.tick(0).picks, 0);
+      expect(e.tick(-5).picks, 0);
+    });
+
+    test('effectivePps includes pick multipliers', () {
+      final state = GameState()..gearOwned.add('hopper');
+      state.biomesUnlocked.add('caves'); // Torchlight: +25% picks
+      final e = makeEngine(state: state);
+      expect(e.pps, closeTo(3, 1e-9));
+      expect(e.effectivePps, closeTo(3.75, 1e-9));
+    });
   });
 
   group('economy', () {
@@ -195,6 +212,20 @@ void main() {
       expect(e.buyGear('hopper'), isFalse);
       expect(e.buyGear('nonexistent'), isFalse);
       expect(e.buyGear('furnace_cart'), isFalse);
+    });
+
+    test('buyGear refuses gear from locked biomes', () {
+      final e = makeEngine();
+      e.state.inventory['prismarine'] = 999;
+      expect(e.buyGear('tide_engine'), isFalse);
+      e.state.biomesUnlocked.addAll(kBiomes.map((b) => b.id));
+      expect(e.buyGear('tide_engine'), isTrue);
+    });
+
+    test('free pickaxe cannot be upgraded', () {
+      final e = makeEngine();
+      e.state.prestigeCount = 5;
+      expect(e.upgradePickaxe('wood'), isFalse);
     });
 
     test('unlockBiome enforces order and cost', () {
@@ -267,6 +298,24 @@ void main() {
           greaterThanOrEqualTo(10));
     });
 
+    test('large chests bias toward rare blocks', () {
+      var rareSmall = 0, rareLarge = 0, totalSmall = 0, totalLarge = 0;
+      // Pumpkin is the rare Plains block (weight 10 of 100).
+      for (var i = 0; i < 60; i++) {
+        final realSmall = GameEngine(GameState()..picks = 1e12,
+            rng: Random(1000 + i));
+        final rs = realSmall.openChest(ChestKind.small)!;
+        totalSmall += rs.blocks.values.fold(0, (a, b) => a + b.toInt());
+        rareSmall += (rs.blocks['pumpkin'] ?? 0).toInt();
+        final realLarge = GameEngine(GameState()..runic = 1e9,
+            rng: Random(5000 + i));
+        final rl = realLarge.openChest(ChestKind.large)!;
+        totalLarge += rl.blocks.values.fold(0, (a, b) => a + b.toInt());
+        rareLarge += (rl.blocks['pumpkin'] ?? 0).toInt();
+      }
+      expect(rareLarge / totalLarge, greaterThan(rareSmall / totalSmall));
+    });
+
     test('chest with all pickaxes owned skips the pickaxe roll', () {
       final rng = ScriptedRandom(doubleValue: 0.0);
       final state = GameState();
@@ -300,7 +349,8 @@ void main() {
       e.state.inventory['dirt'] = 500;
       e.state.picks = 9999;
       e.state.gearOwned.add('hopper');
-      e.state.stats.totalBlocks = 1000;
+      e.state.blocksThisRun = 1000;
+      e.state.smallChestsOpened = 7;
       final gained = e.prestige();
       expect(gained, 5 + 25);
       expect(e.state.runic, gained);
@@ -310,13 +360,15 @@ void main() {
       expect(e.state.inventory, isEmpty);
       expect(e.state.gearOwned, isEmpty);
       expect(e.state.picks, 0);
+      expect(e.state.smallChestsOpened, 0);
+      expect(e.state.blocksThisRun, 0);
       expect(e.state.currentBlockHp, greaterThan(0));
       expect(e.maxPickaxeLevel, 2);
     });
 
     test('prestige runic is capped', () {
       final e = makeEngine();
-      e.state.stats.totalBlocks = 99999999;
+      e.state.blocksThisRun = 99999999;
       expect(e.prestigeRunic, kPrestigeRunicCap);
     });
   });
@@ -337,6 +389,14 @@ void main() {
       final e = makeEngine();
       e.ensureBlock();
       final r = e.applyOffline(100);
+      expect(r.picks, 0);
+    });
+
+    test('negative elapsed clamps to zero', () {
+      final e = makeEngine();
+      e.ensureBlock();
+      final r = e.applyOffline(-60);
+      expect(r.seconds, 0);
       expect(r.picks, 0);
     });
 

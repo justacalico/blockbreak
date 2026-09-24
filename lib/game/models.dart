@@ -1,6 +1,8 @@
 /// Serializable game state. Pure Dart, no Flutter imports.
 library;
 
+import 'content.dart';
+
 class PickaxeState {
   PickaxeState({this.owned = false, this.level = 0});
 
@@ -9,8 +11,10 @@ class PickaxeState {
 
   Map<String, dynamic> toJson() => {'owned': owned, 'level': level};
 
-  static PickaxeState fromJson(Map<String, dynamic> j) =>
-      PickaxeState(owned: j['owned'] as bool, level: j['level'] as int);
+  static PickaxeState fromJson(Map<String, dynamic> j) => PickaxeState(
+        owned: j['owned'] == true,
+        level: _int(j['level']),
+      );
 }
 
 class Stats {
@@ -34,12 +38,24 @@ class Stats {
       };
 
   static Stats fromJson(Map<String, dynamic> j) => Stats(
-        totalTaps: j['totalTaps'] as int,
-        totalBlocks: j['totalBlocks'] as int,
-        totalCrits: j['totalCrits'] as int,
-        chestsOpened: j['chestsOpened'] as int,
+        totalTaps: _int(j['totalTaps']),
+        totalBlocks: _int(j['totalBlocks']),
+        totalCrits: _int(j['totalCrits']),
+        chestsOpened: _int(j['chestsOpened']),
       );
 }
+
+double _dbl(Object? v) => v is num ? v.toDouble() : 0;
+
+int _int(Object? v) => v is num ? v.toInt() : 0;
+
+final _knownBlocks = {
+  for (final b in kBiomes) for (final blk in b.blocks) blk.id,
+};
+final _knownPickaxes = {for (final p in kPickaxes) p.id};
+final _knownGear = {
+  for (final b in kBiomes) for (final g in b.gear) g.id,
+};
 
 class GameState {
   GameState({
@@ -55,6 +71,7 @@ class GameState {
     this.prestigeCount = 0,
     this.currentBlockId = 'dirt',
     this.currentBlockHp = 0,
+    this.blocksThisRun = 0,
     Stats? stats,
     this.savedAt = 0,
   })  : inventory = inventory ?? {},
@@ -75,21 +92,22 @@ class GameState {
   int prestigeCount;
   String currentBlockId;
   double currentBlockHp;
+
+  /// Blocks broken since the last prestige; feeds the runic payout.
+  int blocksThisRun;
   Stats stats;
 
   /// Milliseconds since epoch when this state was saved.
   int savedAt;
 
-  double get blockCount =>
-      inventory.values.fold(0.0, (sum, v) => sum + v);
+  double get blockCount => inventory.values.fold(0.0, (sum, v) => sum + v);
 
   Map<String, dynamic> toJson() => {
         'version': 1,
         'picks': picks,
         'runic': runic,
         'inventory': inventory,
-        'pickaxes':
-            pickaxes.map((k, v) => MapEntry(k, v.toJson())),
+        'pickaxes': pickaxes.map((k, v) => MapEntry(k, v.toJson())),
         'equippedPickaxe': equippedPickaxe,
         'biomesUnlocked': biomesUnlocked.toList(),
         'currentBiome': currentBiome,
@@ -98,35 +116,79 @@ class GameState {
         'prestigeCount': prestigeCount,
         'currentBlockId': currentBlockId,
         'currentBlockHp': currentBlockHp,
+        'blocksThisRun': blocksThisRun,
         'stats': stats.toJson(),
         'savedAt': savedAt,
       };
 
+  /// Tolerant load: missing fields default, unknown ids are dropped, and a
+  /// gapped biome chain is truncated to its contiguous prefix so unlocks
+  /// can never dead-end.
   static GameState fromJson(Map<String, dynamic> j) {
     final inv = <String, double>{};
-    (j['inventory'] as Map<String, dynamic>).forEach((k, v) {
-      inv[k] = (v as num).toDouble();
+    (j['inventory'] as Map?)?.forEach((k, v) {
+      if (v is num && _knownBlocks.contains(k)) inv[k] = v.toDouble();
     });
+
     final picks = <String, PickaxeState>{};
-    (j['pickaxes'] as Map<String, dynamic>).forEach((k, v) {
-      picks[k] = PickaxeState.fromJson(v as Map<String, dynamic>);
+    (j['pickaxes'] as Map?)?.forEach((k, v) {
+      if (v is Map && _knownPickaxes.contains(k)) {
+        picks[k] = PickaxeState.fromJson(v.cast<String, dynamic>());
+      }
     });
+    if (!(picks['wood']?.owned ?? false)) {
+      picks['wood'] = PickaxeState(owned: true);
+    }
+
+    // Keep the longest contiguous prefix of the biome chain.
+    final claimed = (j['biomesUnlocked'] as List? ?? const [])
+        .whereType<String>()
+        .toSet();
+    final biomes = <String>{};
+    for (final b in kBiomes) {
+      if (!claimed.contains(b.id)) break;
+      biomes.add(b.id);
+    }
+    if (biomes.isEmpty) biomes.add('plains');
+
+    var equipped = j['equippedPickaxe'];
+    equipped = equipped is String ? equipped : 'wood';
+    if (!(picks[equipped]?.owned ?? false)) equipped = 'wood';
+
+    var biome = j['currentBiome'];
+    biome = biome is String ? biome : 'plains';
+    if (!biomes.contains(biome)) biome = 'plains';
+
+    final gear = (j['gearOwned'] as List? ?? const [])
+        .whereType<String>()
+        .where(_knownGear.contains)
+        .toSet();
+
+    var block = j['currentBlockId'];
+    block = block is String ? block : 'dirt';
+    if (!_knownBlocks.contains(block)) block = 'dirt';
+
+    final statsRaw = j['stats'];
+    final stats = statsRaw is Map
+        ? Stats.fromJson(statsRaw.cast<String, dynamic>())
+        : Stats();
+
     return GameState(
-      picks: (j['picks'] as num).toDouble(),
-      runic: (j['runic'] as num).toDouble(),
+      picks: _dbl(j['picks']),
+      runic: _dbl(j['runic']),
       inventory: inv,
       pickaxes: picks,
-      equippedPickaxe: j['equippedPickaxe'] as String,
-      biomesUnlocked:
-          (j['biomesUnlocked'] as List).cast<String>().toSet(),
-      currentBiome: j['currentBiome'] as String,
-      gearOwned: (j['gearOwned'] as List).cast<String>().toSet(),
-      smallChestsOpened: j['smallChestsOpened'] as int,
-      prestigeCount: j['prestigeCount'] as int,
-      currentBlockId: j['currentBlockId'] as String,
-      currentBlockHp: (j['currentBlockHp'] as num).toDouble(),
-      stats: Stats.fromJson(j['stats'] as Map<String, dynamic>),
-      savedAt: j['savedAt'] as int,
+      equippedPickaxe: equipped,
+      biomesUnlocked: biomes,
+      currentBiome: biome,
+      gearOwned: gear,
+      smallChestsOpened: _int(j['smallChestsOpened']),
+      prestigeCount: _int(j['prestigeCount']),
+      currentBlockId: block,
+      currentBlockHp: _dbl(j['currentBlockHp']),
+      blocksThisRun: _int(j['blocksThisRun']),
+      stats: stats,
+      savedAt: _int(j['savedAt']),
     );
   }
 }

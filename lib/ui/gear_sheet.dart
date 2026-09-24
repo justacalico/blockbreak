@@ -34,7 +34,7 @@ class GearSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
             child: Text(
-              '${fmt(engine.pps)} picks/sec',
+              '${fmt(engine.effectivePps)} picks/sec',
               style: BB.stat.copyWith(color: BB.leaf),
             ),
           ),

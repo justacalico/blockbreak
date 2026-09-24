@@ -84,7 +84,7 @@ class PickaxesSheet extends StatelessWidget {
                   const SizedBox(height: 6),
                   CostRow(cost: def.cost, inventory: state.inventory),
                 ],
-                if (owned && level < engine.maxPickaxeLevel) ...[
+                if (owned && !def.free && level < engine.maxPickaxeLevel) ...[
                   const SizedBox(height: 6),
                   CostRow(
                       cost: engine.upgradeCost(def.id),
@@ -117,7 +117,7 @@ class PickaxesSheet extends StatelessWidget {
                   color: BB.leaf,
                   onPressed: () => controller.equipPickaxe(def.id),
                 ),
-              if (owned && level < engine.maxPickaxeLevel) ...[
+              if (owned && !def.free && level < engine.maxPickaxeLevel) ...[
                 const SizedBox(height: 6),
                 PixelButton(
                   label: 'UPGRADE',
